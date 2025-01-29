@@ -1,0 +1,44 @@
+# Brazilian Portuguese translation for Arc Menu
+# Copyright (C) 2024
+# This file is distributed under the same license as the monitordisplay package.
+# lucas salles <lucas.salles@policorp.com.br>, 2024.
+# Lucas, 2024
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: monitordisplay\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-02-01 12:52-0300\n"
+"PO-Revision-Date: 2024-02-01 12:52-0300\n"
+"Last-Translator: Lucas Salles <lucas.salles@policorp.com.br>\n"
+"Language-Team: Independent\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"X-Generator: Gtranslator 3.38.0\n"
+
+#: extension.js:51
+msgid "HDMI not connected."
+msgstr "HDMI não conectado."
+
+#: extension.js:51
+msgid "You must have HDMI connected."
+msgstr "É necessário ter o HDMI conectado."
+
+#: extension.js:68
+msgid "Mirrored"
+msgstr "Espelhar"
+
+#: extension.js:69
+msgid "Extended"
+msgstr "Juntar Telas"
+
+#: extension.js:70
+msgid "Primary Only"
+msgstr "Interna Apenas"
+
+#: extension.js:71
+msgid "Secondary Only"
+msgstr "Externa Apenas"
