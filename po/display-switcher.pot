@@ -1,14 +1,14 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the monitordisplay package.
+# This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: monitordisplay\n"
+"Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-02-02 13:00-0300\n"
+"POT-Creation-Date: 2025-03-13 15:29-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,26 +17,35 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: extension.js:51
+#: extension.js:172
 msgid "HDMI not connected."
 msgstr ""
 
-#: extension.js:51
+#: extension.js:173
 msgid "You must have HDMI connected."
 msgstr ""
 
-#: extension.js:59
-msgid "Mirrored"
+#: extension.js:183 
+#: extension.js:249
+msgid "HDMI Display Mode"
 msgstr ""
 
-#: extension.js:60
+#: extension.js:190 
+#: extension.js:309
+msgid "Internal only"
+msgstr ""
+
+#: extension.js:191
+#: extension.js:317
+msgid "External only"
+msgstr ""
+
+#: extension.js:192
+#: extension.js:325
 msgid "Extended"
 msgstr ""
 
-#: extension.js:61
-msgid "Secondary Only"
-msgstr ""
-
-#: extension.js:62
-msgid "Primary Only"
+#: extension.js:193
+#: extension.js:333
+msgid "Mirror"
 msgstr ""
