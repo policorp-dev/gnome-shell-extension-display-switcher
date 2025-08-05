@@ -1,3 +1,15 @@
+gnome-shell-extension-display-switcher (1.Policorp-7) stable; urgency=medium
+
+  * Ajuste na tradução
+
+ -- Lucas Salles <lucas.salles@policorp.com.br>  Thu, 13 Mar 2025 14:44:07 -0400
+
+gnome-shell-extension-display-switcher (1.Policorp-6) stable; urgency=medium
+
+  * Add suporte ao gnome 48
+
+ -- Lucas Salles <lucas.salles@policorp.com.br>  Mon, 10 Mar 2025 13:56:11 -0400
+
 gnome-shell-extension-display-switcher (1.Policorp-5) stable; urgency=medium
 
   * Add correcao HDMI via USB-C
