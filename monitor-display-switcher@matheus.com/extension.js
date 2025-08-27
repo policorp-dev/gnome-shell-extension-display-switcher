@@ -122,9 +122,17 @@ export default class DisplaySwitcher extends Extension {
             while ((fileInfo = enumerator.next_file(null))) {
                 const fileName = fileInfo.get_name();
                 const fileType = fileInfo.get_file_type();
+		const parts = fileName.split('-');
 
                 if (fileType !== Gio.FileType.DIRECTORY || 
-                    !(fileName.includes('HDMI') || fileName.startsWith('DP'))) {
+		   parts.includes('eDP')) {
+                   log(`E-DP: Pulou ${fileName}`);
+		   continue;
+		} 
+
+                if (fileType !== Gio.FileType.DIRECTORY || 
+                    !(fileName.includes('HDMI') || fileName.includes('DP'))) {
+                    //!(fileName.includes('HDMI') || fileName.startsWith('DP'))) {
                     continue;
                 }
 
