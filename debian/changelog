@@ -1,3 +1,9 @@
+gnome-shell-extension-display-switcher (1.Policorp-8) stable; urgency=medium
+
+  * Add bloqueio de resolucoes altas VJFE69B
+
+ -- Lucas Salles <lucas.salles@policorp.com.br>  Wed, 27 Aug 2025 11:41:55 -0400
+
 gnome-shell-extension-display-switcher (1.Policorp-7) stable; urgency=medium
 
   * Ajuste na tradução

@@ -2,6 +2,8 @@
 import dbus
 import sys
 import argparse
+import os
+import json
 
 class DisplayManager:
     def __init__(self):
@@ -43,13 +45,48 @@ class DisplayManager:
                 externals.append(monitor)
                 
         return builtin, externals
+    # Carregar JSON com modos bloqueados
+    def load_blocked_modes(self, json_path="blocked_modes.json"):
+        if not os.path.exists(json_path):
+            return {}
+        with open(json_path, "r") as f:
+            return json.load(f)
 
     def _get_best_mode(self, monitor):
+        connect_str = str(monitor[0])
+        connect_str = str(connect_str).split("'")[1].split('-')[0].upper()
+        if connect_str == "EDP":
+            connect_str = ""
+        elif connect_str not in ['HDMI', 'DP', 'DVI', 'USB']:
+            connect_str = "HDMI"
+        
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        blocked_json = os.path.join(script_dir, "blocked_modes.json")
+        blocked_modes = self.load_blocked_modes(blocked_json)
+        blocked = blocked_modes.get(connect_str, [])
+        if not blocked:
+            print(f"Debug: Não há modos bloqueados para este conector {connect_str}")
+        else:
+            print(f"Debug: Modos bloqueados {connect_str}: {blocked}")
+
         modes = monitor[1]
-        return sorted(modes, 
-            key=lambda m: (m[1] * m[2], m[4]),  # Área > refresh rate
-            reverse=True
-        )[0]
+        if connect_str:
+            sorted_modes = sorted(modes,
+                          key=lambda m: (m[1] * m[2], m[4]),  # Área > refresh rate
+                          reverse=True
+                    )
+            for mode in sorted_modes:
+                width, height = mode[1], mode[2]
+                if not any(bm["width"] == width and bm["height"] == height for bm in blocked):
+                    return mode
+
+            return None
+
+        else:
+            return sorted(modes, 
+                          key=lambda m: (m[1] * m[2], m[4]),  # Área > refresh rate
+                          reverse=True
+                    )[0]
 
     def set_internal(self):
         if not self.builtin:
