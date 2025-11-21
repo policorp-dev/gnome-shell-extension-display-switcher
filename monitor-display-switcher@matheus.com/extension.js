@@ -105,71 +105,83 @@ export default class DisplaySwitcher extends Extension {
     }
 
     _runCommand() {
-        const drmPath = '/sys/class/drm/';
-        const drmDir = Gio.File.new_for_path(drmPath);
+        return new Promise((resolve, reject) => {
+            const scriptPathSwitch = this.path + '/scripts/hdmi-control-service.py';
+            const stateFilePath = GLib.build_filenamev([GLib.get_user_config_dir(), 'hdmi-control', 'state.json']);
 
-        try {
-            const enumerator = drmDir.enumerate_children(
-                'standard::name,standard::type', 
-                Gio.FileQueryInfoFlags.NONE,
-                null
-            );
+            try {
+                // --------------------------
+                // Executa xrand e espera terminar
+                // --------------------------
+                const xrandProc = new Gio.Subprocess({
+                    argv: ['xrandr', '--query'], // ou apenas 'xrandr' se quiser
+                    flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+                });
+                xrandProc.init(null);
 
-            let hdmiConnected = false;
-            let dpConnected = false;
+                xrandProc.communicate_utf8_async(null, null, (proc, res) => {
+                    try {
+                        proc.communicate_utf8_finish(res); // espera xrand terminar
+                        log('xrandr finalizado, sistema atualizado com monitores.');
 
-            let fileInfo;
-            while ((fileInfo = enumerator.next_file(null))) {
-                const fileName = fileInfo.get_name();
-                const fileType = fileInfo.get_file_type();
-		const parts = fileName.split('-');
+                        // --------------------------
+                        // Executa Python em background (como estava antes)
+                        // --------------------------
+                        GLib.spawn_command_line_async(`python3 ${scriptPathSwitch} --now`);
 
-                if (fileType !== Gio.FileType.DIRECTORY || 
-		   parts.includes('eDP')) {
-                   log(`E-DP: Pulou ${fileName}`);
-		   continue;
-		} 
+                        // Função que verifica periodicamente se o arquivo JSON existe
+                        let checkFile = () => {
+                            const stateFile = Gio.File.new_for_path(stateFilePath);
 
-                if (fileType !== Gio.FileType.DIRECTORY || 
-                    !(fileName.includes('HDMI') || fileName.includes('DP'))) {
-                    //!(fileName.includes('HDMI') || fileName.startsWith('DP'))) {
-                    continue;
-                }
+                            if (!stateFile.query_exists(null)) {
+                                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 200, checkFile);
+                                return GLib.SOURCE_REMOVE;
+                            }
 
-                const statusFilePath = `${drmPath}${fileName}/status`;
-                const statusFile = Gio.File.new_for_path(statusFilePath);
+                            stateFile.load_contents_async(null, (file, res) => {
+                                try {
+                                    const [success, contents] = file.load_contents_finish(res);
+                                    if (!success) {
+                                        resolve(false);
+                                        return;
+                                    }
 
-                if (!statusFile.query_exists(null)) {
-                    log(`Arquivo não encontrado: ${statusFilePath}`);
-                    continue;
-                }
+                                    const jsonStr = new TextDecoder().decode(contents);
+                                    const data = JSON.parse(jsonStr);
 
-                const [success, contents] = statusFile.load_contents(null);
-                if (!success) continue;
+                                    resolve(data["external-monitor-connected"] === true);
+                                } catch (e) {
+                                    log(`Erro ao ler JSON: ${e.message}`);
+                                    resolve(false);
+                                }
+                            });
 
-                const status = new TextDecoder().decode(contents).trim();
-                log(`Conector: ${fileName}, Status: ${status}`);
+                            return GLib.SOURCE_REMOVE;
+                        };
 
-                if (fileName.includes('HDMI') && status === 'connected') {
-                    hdmiConnected = true;
-                } else if (fileName.includes('DP') && status === 'connected') {
-                    dpConnected = true;
-                }
+                        // Inicia a primeira verificação
+                        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, checkFile);
+
+                    } catch (e) {
+                        log(`Erro ao executar xrand: ${e.message}`);
+                        resolve(false);
+                    }
+                });
+
+            } catch (e) {
+                log(`Erro ao criar subprocesso xrand ou executar Python: ${e.message}`);
+                resolve(false);
             }
-            
-            return hdmiConnected || dpConnected;
-        } catch (e) {
-            log(`Erro: ${e.message}`);
-            return false;
-        }
-   }
+        });
+    }
 
     _notify(msg, details, icon) {
         Main.notify(msg, details, icon);
     }
 
-    _checkHdmiConnection() {
-        let connect = this._runCommand();
+    async _checkHdmiConnection() {
+        let connect = await this._runCommand();
+
         if (connect) {
             this._showHdmiWindow();
         } else {
@@ -184,7 +196,7 @@ export default class DisplaySwitcher extends Extension {
             this._firstExecution = true;
         }
     }
-
+        
     _showIconHdmiMenu() {
         if (this._hdmiMenu) return;
         
