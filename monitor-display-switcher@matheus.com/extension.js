@@ -52,6 +52,7 @@ export default class DisplaySwitcher extends Extension {
         this._lastSelectedMode = null;
         this._inactivityTimeout = null; 
         this._fileMonitor = null;
+        this._buttonMap = new Map();
     }
 
     enable() {
@@ -102,6 +103,7 @@ export default class DisplaySwitcher extends Extension {
             this._fileMonitor.destroy();
             this._fileMonitor = null;
         }
+        this._buttonMap.clear();
     }
 
     _runCommand() {
@@ -114,7 +116,7 @@ export default class DisplaySwitcher extends Extension {
                 // Executa xrand e espera terminar
                 // --------------------------
                 const xrandProc = new Gio.Subprocess({
-                    argv: ['xrandr', '--query'], // ou apenas 'xrandr' se quiser
+                    argv: ['xrandr', '--query'],
                     flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
                 });
                 xrandProc.init(null);
@@ -124,12 +126,8 @@ export default class DisplaySwitcher extends Extension {
                         proc.communicate_utf8_finish(res); // espera xrand terminar
                         log('xrandr finalizado, sistema atualizado com monitores.');
 
-                        // --------------------------
-                        // Executa Python em background (como estava antes)
-                        // --------------------------
                         GLib.spawn_command_line_async(`python3 ${scriptPathSwitch} --now`);
 
-                        // Função que verifica periodicamente se o arquivo JSON existe
                         let checkFile = () => {
                             const stateFile = Gio.File.new_for_path(stateFilePath);
 
@@ -159,7 +157,6 @@ export default class DisplaySwitcher extends Extension {
                             return GLib.SOURCE_REMOVE;
                         };
 
-                        // Inicia a primeira verificação
                         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, checkFile);
 
                     } catch (e) {
@@ -177,6 +174,74 @@ export default class DisplaySwitcher extends Extension {
 
     _notify(msg, details, icon) {
         Main.notify(msg, details, icon);
+    }
+
+    _detectCurrentDisplayMode() {
+        return new Promise((resolve) => {
+            const scriptPath = this.path + '/scripts/detect-display-mode.py';
+            
+            try {
+                const proc = Gio.Subprocess.new(
+                    ['python3', scriptPath],
+                    Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
+                );
+
+                let timeoutReached = false;
+                const timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2000, () => {
+                    log('[DisplayMode] Detection timeout, using fallback');
+                    timeoutReached = true;
+                    resolve(null);
+                    return GLib.SOURCE_REMOVE;
+                });
+
+                proc.communicate_utf8_async(null, null, (proc, res) => {
+                    if (timeoutReached) {
+                        try {
+                            const [, stdout, stderr] = proc.communicate_utf8_finish(res);
+                            if (stdout) {
+                                const mode = stdout.trim();
+                                if (['internal', 'external', 'join', 'mirror'].includes(mode)) {
+                                    log(`[DisplayMode] Detected (late): ${mode}`);
+                                    if (this._buttonMap && this._buttonMap.size > 0) {
+                                        this._updateActiveIndicator(mode);
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            log(`[DisplayMode] Late detection error: ${e.message}`);
+                        }
+                        return;
+                    }
+                    
+                    GLib.source_remove(timeoutId);
+                    
+                    try {
+                        const [, stdout, stderr] = proc.communicate_utf8_finish(res);
+                        
+                        if (stdout) {
+                            const mode = stdout.trim();
+                            if (['internal', 'external', 'join', 'mirror'].includes(mode)) {
+                                log(`[DisplayMode] Detected: ${mode}`);
+                                resolve(mode);
+                                return;
+                            }
+                        }
+                        
+                        if (stderr) {
+                            log(`[DisplayMode] Error: ${stderr}`);
+                        }
+                        
+                        resolve(null);
+                    } catch (e) {
+                        log(`[DisplayMode] Exception: ${e.message}`);
+                        resolve(null);
+                    }
+                });
+            } catch (e) {
+                log(`[DisplayMode] Failed to spawn: ${e.message}`);
+                resolve(null);
+            }
+        });
     }
 
     async _checkHdmiConnection() {
@@ -247,10 +312,11 @@ export default class DisplaySwitcher extends Extension {
         if (this._hdmiWindow || !this._firstExecution) return;
   
         const monitor = Main.layoutManager.primaryMonitor;
-        log(`Monitor width: ${monitor.width}, height: ${monitor.height}`);
+        // log(`Monitor width: ${monitor.width}, height: ${monitor.height}`);
         
         const { marginTop, iconSize, fontSize } = this._getScaledValue(monitor.height);
         let x2 = monitor.width - 500;
+        
         this._hdmiWindow = new St.BoxLayout({
             x: x2,
             width: 500,
@@ -272,6 +338,14 @@ export default class DisplaySwitcher extends Extension {
         this._hdmiWindow.add_child(title);
     
         const createButtonWithIcon = (iconName, labelText, mode, marginTop, FontSize, buttonHeight = 'auto') => {
+            let indicator = new St.Widget({
+                style_class: 'active-mode-indicator',
+                visible: false,
+                width: 8,
+                height: 8,
+                style: 'background-color: #3584e4; border-radius: 4px;'
+            });
+            
             let icon = new St.Icon({
                 icon_name: iconName,
                 width: 100,
@@ -279,6 +353,7 @@ export default class DisplaySwitcher extends Extension {
             });
             let label = new St.Label({ text: Gettext.dgettext(this._gettextDomain, labelText) });
             let box = new St.BoxLayout({ vertical: false });
+            box.add_child(indicator);
             box.add_child(icon);
             box.add_child(label);
     
@@ -288,6 +363,9 @@ export default class DisplaySwitcher extends Extension {
                 reactive: true,
                 can_focus: true,
             });
+
+            button._indicator = indicator;
+            button._mode = mode;
     
             button.connect('enter-event', () => {
                 this._resetInactivityTimeout();
@@ -301,14 +379,15 @@ export default class DisplaySwitcher extends Extension {
             });
     
             button.connect('clicked', () => {
-                log(`Botão clicado: ${mode}`);
                 if (this._autoApplyTimeout) {
                     GLib.source_remove(this._autoApplyTimeout);
                     this._autoApplyTimeout = null;
                 }
+                this._updateActiveIndicator(mode);
                 this._setDisplayMode(mode);
                 this._removeHdmiWindow();
             });
+            
             button.set_style(`margin-top: ${marginTop}; font-size: ${FontSize}; height: ${buttonHeight};`);
             return button;
         };
@@ -324,46 +403,45 @@ export default class DisplaySwitcher extends Extension {
     
         let px_icon = iconSize; 
         let px_font = fontSize; 
+                
         let internalOnly = createButtonWithIcon(
-            'video-single-display-symbolic',
-	    Gettext.dgettext(this._gettextDomain, "Internal only"),
-            'internal',
-            marginTop,
-            px_font,
-            px_icon
+            'video-single-display-symbolic', "Internal only", 'internal', marginTop, px_font, px_icon
         );
         let externalOnly = createButtonWithIcon(
-            'computer-symbolic',
-            Gettext.dgettext(this._gettextDomain, "External only"),
-            'external',
-            marginTop,
-            px_font,
-            px_icon
+            'computer-symbolic', "External only", 'external', marginTop, px_font, px_icon
         );
         let joinDisplay = createButtonWithIcon(
-            'video-joined-displays-symbolic',
-            Gettext.dgettext(this._gettextDomain, "Extended"),
-            'join',
-            marginTop,
-            px_font,
-            px_icon
+            'video-joined-displays-symbolic', "Extended", 'join', marginTop, px_font, px_icon
         );
         let mirrorDisplay = createButtonWithIcon(
-            'view-mirror-symbolic',
-            Gettext.dgettext(this._gettextDomain, "Mirror"),
-            'mirror',
-            marginTop,
-            px_font,
-            px_icon
+            'view-mirror-symbolic', "Mirror", 'mirror', marginTop, px_font, px_icon
         );
     
         this._hdmiWindow.add_child(internalOnly);
         this._hdmiWindow.add_child(externalOnly);
         this._hdmiWindow.add_child(joinDisplay);
         this._hdmiWindow.add_child(mirrorDisplay);
-    
+
+        this._buttonMap.set('internal', internalOnly);
+        this._buttonMap.set('external', externalOnly);
+        this._buttonMap.set('join', joinDisplay);
+        this._buttonMap.set('mirror', mirrorDisplay);
+
         Main.uiGroup.add_child(this._hdmiWindow);
         this._firstExecution = false;
+
+        this._detectCurrentDisplayMode().then((currentMode) => {
+            if (!this._hdmiWindow) return;
+
+            if (currentMode && this._buttonMap.has(currentMode)) {
+                this._updateActiveIndicator(currentMode);
+                
+                const activeButton = this._buttonMap.get(currentMode);
+                if (activeButton) {
+                    activeButton.grab_key_focus();
+                }
+            }
+        });
     }
 
     _resetInactivityTimeout() {
@@ -380,6 +458,26 @@ export default class DisplaySwitcher extends Extension {
                 return GLib.SOURCE_REMOVE;
             }
         );
+    }
+
+    _updateActiveIndicator(newMode) {
+        log(`[Indicator] Updating to mode: ${newMode}`);
+        
+        // Hide all indicators
+        for (let [mode, button] of this._buttonMap) {
+            if (button._indicator) {
+                button._indicator.visible = false;
+            }
+        }
+        
+        // Show indicator for new mode
+        if (this._buttonMap.has(newMode)) {
+            const activeButton = this._buttonMap.get(newMode);
+            if (activeButton._indicator) {
+                activeButton._indicator.visible = true;
+                log(`[Indicator] Showing indicator for ${newMode}`);
+            }
+        }
     }
 
     _removeHdmiWindow() {
@@ -402,6 +500,7 @@ export default class DisplaySwitcher extends Extension {
             this._clickOutsideHandler = null;
         }
 
+        this._buttonMap.clear();
         this._firstExecution = true;
     }
 

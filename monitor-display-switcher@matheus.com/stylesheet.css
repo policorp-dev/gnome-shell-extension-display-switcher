@@ -42,3 +42,11 @@
     align-items: center;
     justify-content: center;
 }
+
+.active-mode-indicator {
+    width: 8px;
+    height: 8px;
+    background-color: #3584e4;
+    border-radius: 50%;
+    margin-right: 10px;
+}
