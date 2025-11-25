@@ -161,11 +161,18 @@ export default class DisplaySwitcher extends Extension {
         }));
     
         const createButton = (iconName, labelText, mode) => {
-            let indicator = new St.Widget({
+            let indicator = new St.DrawingArea({
                 style_class: 'active-mode-indicator',
-                visible: false, 
-                width: 10, height: 10,
-                style: 'background-color: #3584e4; border-radius: 50%; margin-right: 10px;'
+                visible: false,
+                reactive: false,
+            });
+            indicator.set_size(12, 12);
+            indicator.connect('repaint', (area) => {
+                const cr = area.get_context();
+                // cor #3584e4 em RGBA (aprox)
+                cr.setSourceRGBA(0.207, 0.518, 0.894, 1);
+                cr.arc(6, 6, 6, 0, 2 * Math.PI);
+                cr.fill();
             });
             
             let box = new St.BoxLayout({ vertical: false });
