@@ -4,11 +4,14 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import Gio from 'gi://Gio';
 import Clutter from 'gi://Clutter';
 import Gettext from 'gettext';
+
+import { HdmiToggle } from './quickSettingsToggle.js';
 
 const REF_HIGH_RES = { width: 1920, height: 1200, marginTop: 150, iconSize: 55, fontSize: 30 };
 const REF_LOW_RES  = { width: 864,  height: 486,  marginTop: 50,  iconSize: 25, fontSize: 15 };
@@ -89,6 +92,17 @@ export default class DisplaySwitcher extends Extension {
             log(`Erro no monitoramento: ${e.message}`);
         }
 
+        // Add Quick Settings Toggle
+        this._hdmiToggle = new HdmiToggle(this);
+        this._quickSettingsIndicator = new QuickSettings.SystemIndicator();
+        this._quickSettingsIndicator.quickSettingsItems.push(this._hdmiToggle);
+        Main.panel.statusArea.quickSettings.addExternalIndicator(this._quickSettingsIndicator);
+
+        // Settings Listener
+        this._settings.connect('changed::show-quick-settings-toggle', () => {
+            this._checkHdmiConnection();
+        });
+
         this._monitorsChangedId = Main.layoutManager.connect('monitors-changed', () => {
             if (this._hdmiWindow) {
                 GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
@@ -97,6 +111,9 @@ export default class DisplaySwitcher extends Extension {
                 });
             }
         });
+
+        // Initial Detection
+        this._detectCurrentDisplayMode();
     }
 
     disable() {
@@ -117,6 +134,16 @@ export default class DisplaySwitcher extends Extension {
         if (this._monitorsChangedId) {
             Main.layoutManager.disconnect(this._monitorsChangedId);
             this._monitorsChangedId = null;
+        }
+
+        // Cleanup Quick Settings
+        if (this._hdmiToggle) {
+            this._hdmiToggle.destroy();
+            this._hdmiToggle = null;
+        }
+        if (this._quickSettingsIndicator) {
+            this._quickSettingsIndicator.destroy();
+            this._quickSettingsIndicator = null;
         }
     }
 
@@ -250,6 +277,9 @@ export default class DisplaySwitcher extends Extension {
                             const mode = stdout.trim();
                             if (['internal', 'external', 'join', 'mirror'].includes(mode)) {
                                 log(`[DisplayMode] Detected: ${mode}`);
+                                if (this._hdmiToggle) {
+                                    this._hdmiToggle.updateState(mode);
+                                }
                                 resolve(mode);
                                 return;
                             }
@@ -275,23 +305,30 @@ export default class DisplaySwitcher extends Extension {
     async _checkHdmiConnection() {
         try {
             let connect = await this._runCommand();
+            const showInMenu = this._settings.get_boolean('show-quick-settings-toggle');
+
+            if (this._hdmiToggle) {
+                if (!showInMenu) {
+                    this._hdmiToggle.visible = false;
+                } else {
+                    this._hdmiToggle.visible = true;
+                    this._hdmiToggle.setActiveState(connect);
+                }
+            }
 
             if (connect) {
                 this._showHdmiWindow();
             } else {
-                this._removeHdmiMenu();
                 this._removeHdmiWindow();
-                log("HDMI não conectado");
+                log("HDMI Disconnected");
                 this._notify(
-                    Gettext.dgettext(this._gettextDomain, "HDMI not connected."),
-                    Gettext.dgettext(this._gettextDomain, "You must have HDMI connected."),
-                    'dialog-information'
+                    Gettext.dgettext(this._gettextDomain, "HDMI Disconnected"),
+                    Gettext.dgettext(this._gettextDomain, "The HDMI cable is not connected."),
+                    "video-display-symbolic"
                 );
-                this._firstExecution = true;
             }
         } catch (e) {
-            log(`[DisplaySwitcher] Error in _checkHdmiConnection: ${e.message}`);
-            if (e.stack) log(e.stack);
+            log(`Error checking HDMI connection: ${e.message}`);
         }
     }
         
@@ -397,11 +434,11 @@ export default class DisplaySwitcher extends Extension {
             style_class: 'hdmi-flyout-header'
         });
         
-        let backIcon = new St.Icon({
-            icon_name: 'go-previous-symbolic',
-            icon_size: 16,
-            style_class: 'hdmi-header-back-icon'
-        });
+        //let backIcon = new St.Icon({
+        //    icon_name: 'go-previous-symbolic',
+        //    icon_size: 16,
+        //    style_class: 'hdmi-header-back-icon'
+        //});
         
         let titleLabel = new St.Label({
             text: Gettext.dgettext(this._gettextDomain, "HDMI Display Mode"),
@@ -675,7 +712,26 @@ export default class DisplaySwitcher extends Extension {
         this._firstExecution = true;
     }
 
-    _setDisplayMode(mode) {
+    async _setDisplayMode(mode) {
+        let connect = await this._runCommand();
+        
+        if (!connect) {
+            if (this._hdmiToggle) {
+                this._hdmiToggle.setActiveState(false);
+            }
+            this._notify(
+                Gettext.dgettext(this._gettextDomain, "HDMI Disconnected"),
+                Gettext.dgettext(this._gettextDomain, "Cannot switch mode without HDMI connection."),
+                "video-display-symbolic"
+            );
+            return;
+        }
+
+        if (this._hdmiToggle) {
+            this._hdmiToggle.setActiveState(true);
+            this._hdmiToggle.updateState(mode);
+        }
+
         const scriptPathSwitch = this.path + '/scripts/hdmi-swicth-python.py';
 
         switch (mode) {
