@@ -1,6 +1,18 @@
+gnome-shell-extension-display-switcher (2.Policorp-0) stable; urgency=medium
+
+  * Novo visual estilo win 11
+
+ -- Lucas Salles <lucas.salles@policorp.com.br>  Wed, 26 Nov 2025 09:03:38 -0400
+
+gnome-shell-extension-display-switcher (1.Policorp-9) stable; urgency=medium
+
+  * Add nova forma de deteccao do modo hdmi via javascript
+
+ -- Lucas Salles <lucas.salles@policorp.com.br>  Tue, 25 Nov 2025 10:19:34 -0400
+
 gnome-shell-extension-display-switcher (1.Policorp-8) stable; urgency=medium
 
-  * Add bloqueio de resolucoes altas VJFE69B
+  * Add melhoria de feedback visual no modo atual
 
  -- Lucas Salles <lucas.salles@policorp.com.br>  Wed, 27 Aug 2025 11:41:55 -0400
 
