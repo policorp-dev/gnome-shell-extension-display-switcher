@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="monitordisplay">
+  <schema id="org.gnome.shell.extensions.hdmidisplay" path="/org/gnome/shell/extensions/hdmidisplay/">
+    <key type="as" name="shortcut-hdmidisplay">
+      <default><![CDATA[['<Super>p']]]></default>
+      <summary>Atalho para abrir Netflix</summary>
+      <description>Configuração do atalho de teclado para abrir o Netflix.</description>
+    </key>
+    <key name="show-quick-settings-toggle" type="b">
+      <default>true</default>
+      <summary>Show Quick Settings Toggle</summary>
+      <description>Shows the projection shortcut in Quick Settings.</description>
+    </key>
+  </schema>
+</schemalist>

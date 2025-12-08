@@ -1,0 +1,14 @@
+{
+  "HDMI": [],
+  "DP": [
+    {"width": 3840, "height": 2160},
+    {"width": 2560, "height": 1600},
+    {"width": 2560, "height": 1440},
+    {"width": 2048, "height": 1536},
+    {"width": 2048, "height": 1536},
+    {"width": 1920, "height": 1440}
+  ],
+  "DVI": [],
+  "USB": []
+}
+

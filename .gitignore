@@ -1,0 +1,8 @@
+debian/.debhelper/
+debian/debhelper-build-stamp
+monitor-display-switcher@matheus.com/schemas/gschemas.compiled
+debian/gnome-shell-extension-display-switcher/
+debian/gnome-shell-extension-display-switcher.debhelper.log
+debian/files
+debian/gnome-shell-extension-display-switcher.substvars
+monitor-display-switcher@matheus.com/locale/

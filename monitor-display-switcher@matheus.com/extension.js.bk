@@ -1,0 +1,333 @@
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+import GLib from 'gi://GLib';
+import St from 'gi://St';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
+import Gio from 'gi://Gio';
+import Gettext from 'gettext';
+
+// Definição XML corrigida para GNOME 48 (Estrutura aninhada)
+const DisplayConfigXML = `
+<node>
+  <interface name="org.gnome.Mutter.DisplayConfig">
+    <method name="GetCurrentState">
+      <arg type="u" direction="out" name="serial" />
+      <arg type="a((ssss)a(siiddada{sv})a{sv})" direction="out" name="monitors" />
+      <arg type="a(iiduba(ssss)a{sv})" direction="out" name="logical_monitors" />
+      <arg type="a{sv}" direction="out" name="properties" />
+    </method>
+  </interface>
+</node>`;
+
+const DisplayConfigProxy = Gio.DBusProxy.makeProxyWrapper(DisplayConfigXML);
+
+export default class DisplaySwitcher extends Extension {
+    constructor(metadata) {
+        super(metadata);
+        this._keybindingId = 'shortcut-hdmidisplay';
+        this._autoApplyTimeout = null;
+        this._lastSelectedMode = null;
+        this._inactivityTimeout = null; 
+        this._buttonMap = new Map();
+        this._proxy = null;
+    }
+
+    enable() {
+        this._gettextDomain = 'monitordisplay';
+        Gettext.bindtextdomain(this._gettextDomain, this.path + '/locale');
+        this._settings = this.getSettings();
+        
+        this._proxy = new DisplayConfigProxy(
+            Gio.DBus.session,
+            'org.gnome.Mutter.DisplayConfig',
+            '/org/gnome/Mutter/DisplayConfig'
+        );
+
+        Main.wm.addKeybinding(
+            this._keybindingId,
+            this._settings,
+            Meta.KeyBindingFlags.NONE,
+            Shell.ActionMode.NORMAL,
+            () => {
+                if (this._hdmiWindow) {
+                    this._cycleDisplayMode();
+                } else {
+                    this._showHdmiWindow();
+                }
+            }
+        );
+    }
+
+    disable() {
+        this._removeHdmiWindow();
+        Main.wm.removeKeybinding(this._keybindingId);
+        this._settings = null;
+        this._proxy = null;
+        this._buttonMap.clear();
+    }
+
+    _notify(msg, details, icon) {
+        Main.notify(msg, details, icon);
+    }
+
+    _detectStateAsync(callback) {
+        if (!this._proxy) return;
+
+        this._proxy.GetCurrentStateRemote((result, error) => {
+            if (error) {
+                log(`[DisplaySwitcher] Erro DBus: ${error.message}`);
+                return;
+            }
+
+            try {
+                const monitors = result[1];
+                const logicalMonitors = result[2];
+
+                let builtinConnector = null;
+                let externalConnectors = [];
+
+                for (let i = 0; i < monitors.length; i++) {
+                    let spec = monitors[i][0];
+                    let props = monitors[i][2];
+                    let connector = spec[0];
+                    let isBuiltin = props['is-builtin'] === true;
+
+                    if (isBuiltin || connector.startsWith('eDP') || connector.startsWith('LVDS')) {
+                        builtinConnector = connector;
+                    } else {
+                        externalConnectors.push(connector);
+                    }
+                }
+
+                if (externalConnectors.length === 0) {
+                    callback({ connected: false, mode: 'unknown' });
+                    return;
+                }
+
+                let activeBuiltin = false;
+                let activeExternal = false;
+
+                for (let i = 0; i < logicalMonitors.length; i++) {
+                    let subMonitors = logicalMonitors[i][5];
+                    for (let j = 0; j < subMonitors.length; j++) {
+                        let connector = subMonitors[j][0];
+                        if (connector === builtinConnector) activeBuiltin = true;
+                        else if (externalConnectors.includes(connector)) activeExternal = true;
+                    }
+                }
+
+                let mode = 'external'; // Default seguro
+                const isMirror = logicalMonitors.length === 1 && activeBuiltin && activeExternal;
+
+                if (isMirror) mode = 'mirror';
+                else if (activeBuiltin && activeExternal) mode = 'join';
+                else if (activeBuiltin && !activeExternal) mode = 'internal';
+                else if (!activeBuiltin && activeExternal) mode = 'external';
+
+                // Retorna sucesso
+                callback({ connected: true, mode: mode });
+
+            } catch (e) {
+                log(`[DisplaySwitcher] Erro parsing: ${e.message}`);
+            }
+        });
+    }
+
+    _showHdmiWindow() {
+        if (this._hdmiWindow) return;
+  
+        const monitor = Main.layoutManager.primaryMonitor;
+        if (!monitor) return;
+
+        const { marginTop, fontSize } = this._getScaledValue(monitor.height);
+        
+        this._hdmiWindow = new St.BoxLayout({
+            x: monitor.width - 500,
+            width: 500,
+            height: monitor.height,
+            vertical: true,
+            style_class: 'hdmi-panel',
+        });
+        
+        this._hdmiWindow.connect('notify::mapped', () => {
+            if (this._hdmiWindow.mapped) this._resetInactivityTimeout();
+        });        
+        
+        this._hdmiWindow.add_child(new St.Label({ 
+            text: Gettext.dgettext(this._gettextDomain, "HDMI Display Mode"), 
+            style_class: 'hdmi-title'
+        }));
+    
+        const createButton = (iconName, labelText, mode) => {
+            let indicator = new St.DrawingArea({
+                style_class: 'active-mode-indicator',
+                visible: false,
+                reactive: false,
+            });
+            indicator.set_size(12, 12);
+            indicator.connect('repaint', (area) => {
+                const cr = area.get_context();
+                // cor #3584e4 em RGBA (aprox)
+                cr.setSourceRGBA(0.207, 0.518, 0.894, 1);
+                cr.arc(6, 6, 6, 0, 2 * Math.PI);
+                cr.fill();
+            });
+            
+            let box = new St.BoxLayout({ vertical: false });
+            box.add_child(indicator);
+            box.add_child(new St.Icon({ icon_name: iconName, width: 64, style_class: 'hdmi-button-icon' }));
+            box.add_child(new St.Label({ text: labelText }));
+    
+            let button = new St.Button({
+                style_class: 'hdmi-button',
+                child: box, reactive: true, can_focus: true,
+            });
+
+            button._indicator = indicator;
+            button._mode = mode;
+    
+            button.connect('enter-event', () => {
+                this._resetInactivityTimeout();
+                this._resetActiveButton();
+                button.add_style_class_name('hdmi-button-active');
+                button.grab_key_focus();
+                if (this._autoApplyTimeout) { GLib.source_remove(this._autoApplyTimeout); this._autoApplyTimeout = null; }
+            });
+    
+            button.connect('clicked', () => {
+                this._setDisplayMode(mode);
+                this._removeHdmiWindow();
+            });
+            
+            button.set_style(`margin-top: ${marginTop}; font-size: ${fontSize};`);
+            return button;
+        };
+    
+        let b1 = createButton('video-single-display-symbolic', "Internal only", 'internal');
+        let b2 = createButton('computer-symbolic', "External only", 'external');
+        let b3 = createButton('video-joined-displays-symbolic', "Extended", 'join');
+        let b4 = createButton('view-mirror-symbolic', "Mirror", 'mirror');
+    
+        this._hdmiWindow.add_child(b1);
+        this._hdmiWindow.add_child(b2);
+        this._hdmiWindow.add_child(b3);
+        this._hdmiWindow.add_child(b4);
+
+        this._buttonMap.clear();
+        this._buttonMap.set('internal', b1);
+        this._buttonMap.set('external', b2);
+        this._buttonMap.set('join', b3);
+        this._buttonMap.set('mirror', b4);
+
+        Main.uiGroup.add_child(this._hdmiWindow);
+
+        this._detectStateAsync((state) => {
+            if (!this._hdmiWindow) return;
+
+            if (!state.connected) {
+                log("[DisplaySwitcher] HDMI não detectado (DBus). Fechando menu.");
+                this._removeHdmiWindow();
+                this._notify(
+                    "HDMI não conectado",
+                    "Conecte um cabo HDMI para usar este menu.",
+                    "dialog-error-symbolic"
+                );
+                return;
+            }
+
+            log(`[DisplaySwitcher] Conectado. Modo: ${state.mode}`);
+            this._updateActiveIndicator(state.mode);
+            
+            if (state.mode && this._buttonMap.has(state.mode)) {
+                this._buttonMap.get(state.mode).grab_key_focus();
+            }
+        });
+    }
+    
+    _resetInactivityTimeout() {
+        if (this._inactivityTimeout) {
+            GLib.source_remove(this._inactivityTimeout);
+            this._inactivityTimeout = null;
+        }
+        this._inactivityTimeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 5, () => {
+            this._removeHdmiWindow();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _resetActiveButton() {
+        this._hdmiWindow.get_children().forEach(child => {
+            if (child instanceof St.Button) child.remove_style_class_name('hdmi-button-active');
+        });
+    }
+
+    _updateActiveIndicator(newMode) {
+        for (let [mode, button] of this._buttonMap) {
+            if (button._indicator) button._indicator.visible = false;
+        }
+        if (this._buttonMap.has(newMode)) {
+            const btn = this._buttonMap.get(newMode);
+            if (btn._indicator) btn._indicator.visible = true;
+        }
+    }
+
+    _removeHdmiWindow() {
+        if (this._inactivityTimeout) {
+            GLib.source_remove(this._inactivityTimeout);
+            this._inactivityTimeout = null;
+        }        
+        if (this._autoApplyTimeout) {
+            GLib.source_remove(this._autoApplyTimeout);
+            this._autoApplyTimeout = null;
+        }
+        if (this._hdmiWindow) {
+            this._hdmiWindow.destroy();
+            this._hdmiWindow = null;
+        }
+        this._buttonMap.clear();
+    }
+
+    _setDisplayMode(mode) {
+        const scriptPathSwitch = this.path + '/scripts/hdmi-swicth-python.py';
+        GLib.spawn_command_line_async(`python3 ${scriptPathSwitch} ${mode}`);
+        this._removeHdmiWindow();
+    }
+
+    _cycleDisplayMode() {
+        if (!this._hdmiWindow) return;
+        if (this._autoApplyTimeout) {
+            GLib.source_remove(this._autoApplyTimeout);
+            this._autoApplyTimeout = null;
+        }
+
+        const modes = ['internal', 'external', 'join', 'mirror'];
+        this._currentModeIndex = ((this._currentModeIndex || 0) + 1) % modes.length;
+        const selectedMode = modes[this._currentModeIndex];
+
+        const buttons = this._hdmiWindow.get_children().filter(c => c instanceof St.Button);
+        if (buttons[this._currentModeIndex]) {
+            this._resetActiveButton();
+            buttons[this._currentModeIndex].add_style_class_name('hdmi-button-active');
+            this._lastSelectedMode = selectedMode;
+            
+            this._autoApplyTimeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+                if (this._hdmiWindow && this._lastSelectedMode === selectedMode) {
+                    this._setDisplayMode(selectedMode);
+                }
+                this._autoApplyTimeout = null;
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+    }
+
+    _getScaledValue(currentHeight) {
+        const clampedHeight = Math.min(Math.max(currentHeight, 486), 1200);
+        const scale = (clampedHeight - 486) / (1200 - 486);
+        return {
+            marginTop: `${Math.round(50 + (150 - 50) * scale)}px`,
+            fontSize:  `${Math.round(15 + (30 - 15) * scale)}px`
+        };
+    }
+}

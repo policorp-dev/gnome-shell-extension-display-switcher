@@ -1,0 +1,24 @@
+Source: gnome-shell-extension-display-switcher
+Section: gnome
+Priority: optional
+Maintainer: root <root@unknown>
+Rules-Requires-Root: no
+Build-Depends: debhelper-compat (= 13), gettext, libgettextpo-dev, libglib2.0-bin
+Standards-Version: 4.6.2
+Homepage: <insert the upstream URL, if relevant>
+#Vcs-Browser: https://salsa.debian.org/debian/gnome-shell-extension-display-switcher
+#Vcs-Git: https://salsa.debian.org/debian/gnome-shell-extension-display-switcher.git
+
+Package: gnome-shell-extension-display-switcher
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, acpid
+Description: Display Switcher é uma extensão para 
+ o GNOME Shell que fornece uma maneira fácil e 
+ rápida de alternar entre os seus monitores.
+
+
+
+
+
+
+ 

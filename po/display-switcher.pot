@@ -1,0 +1,75 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-26 14:37-0400\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: monitor-display-switcher@matheus.com/extension.js:325
+#: monitor-display-switcher@matheus.com/extension.js:723
+#: monitor-display-switcher@matheus.com/quickSettingsToggle.js:32
+msgid "HDMI Disconnected"
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/extension.js:326
+msgid "The HDMI cable is not connected."
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/extension.js:338
+#: monitor-display-switcher@matheus.com/extension.js:444
+#: monitor-display-switcher@matheus.com/quickSettingsToggle.js:11
+#: monitor-display-switcher@matheus.com/quickSettingsToggle.js:19
+msgid "HDMI Display Mode"
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/extension.js:345
+#: monitor-display-switcher@matheus.com/extension.js:573
+#: monitor-display-switcher@matheus.com/quickSettingsToggle.js:21
+msgid "Internal only"
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/extension.js:346
+#: monitor-display-switcher@matheus.com/extension.js:582
+#: monitor-display-switcher@matheus.com/quickSettingsToggle.js:24
+msgid "External only"
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/extension.js:347
+#: monitor-display-switcher@matheus.com/extension.js:579
+#: monitor-display-switcher@matheus.com/quickSettingsToggle.js:23
+msgid "Extended"
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/extension.js:348
+#: monitor-display-switcher@matheus.com/extension.js:576
+#: monitor-display-switcher@matheus.com/quickSettingsToggle.js:22
+msgid "Mirror"
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/extension.js:724
+msgid "Cannot switch mode without HDMI connection."
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/prefs.js:12
+msgid "HDMI Display Configuration"
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/prefs.js:16
+msgid "Show in System Menu"
+msgstr ""
+
+#: monitor-display-switcher@matheus.com/prefs.js:17
+msgid "Shows the projection shortcut in Quick Settings."
+msgstr ""

@@ -1,0 +1,10 @@
+{
+  "name": "Monitor Display Switcher",
+  "description": "Show the monitor display when HDMI is connected",
+  "uuid": "monitor-display-switcher@matheus.com",
+  "settings-schema": "org.gnome.shell.extensions.hdmidisplay",
+  "gettext-domain": "monitordisplay",
+  "shell-version": [
+    "47", "48"
+  ]
+}
