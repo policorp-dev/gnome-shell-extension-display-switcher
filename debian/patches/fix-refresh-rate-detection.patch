@@ -1,0 +1,70 @@
+Index: gnome-shell-extension-display-switcher/monitor-display-switcher@matheus.com/scripts/hdmi-swicth-python.py
+===================================================================
+--- gnome-shell-extension-display-switcher.orig/monitor-display-switcher@matheus.com/scripts/hdmi-swicth-python.py
++++ gnome-shell-extension-display-switcher/monitor-display-switcher@matheus.com/scripts/hdmi-swicth-python.py
+@@ -12,6 +12,29 @@ class DisplayManager:
+         self.state = self._get_current_state()
+         self.builtin, self.externals = self._find_monitors()
+ 
++    @staticmethod
++    def _get_refresh_rate(mode):
++        """
++        Identifica a taxa de atualização (refresh rate) no objeto de modo do Mutter.
++        O refresh rate costuma ser > 20Hz, enquanto a escala costuma ser < 10.
++        """
++        try:
++            # Tenta o índice 3 (padrão em versões novas)
++            val3 = float(mode[3])
++            if val3 > 20.0:
++                return val3
++            
++            # Se o índice 3 for baixo (provavelmente uma escala), tenta o índice 4
++            if len(mode) > 4:
++                val4 = float(mode[4])
++                if val4 > 20.0:
++                    return val4
++            
++            return val3 # Fallback
++        except (Exception, IndexError):
++            return 60.0 # Último recurso
++
++
+     def _get_dbus_interface(self):
+         proxy = self.bus.get_object(
+             'org.gnome.Mutter.DisplayConfig',
+@@ -72,7 +95,7 @@ class DisplayManager:
+         modes = monitor[1]
+         if connect_str:
+             sorted_modes = sorted(modes,
+-                          key=lambda m: (m[1] * m[2], m[4]),  # Área > refresh rate
++                          key=lambda m: (m[1] * m[2], DisplayManager._get_refresh_rate(m)),  # Área > refresh rate
+                           reverse=True
+                     )
+             for mode in sorted_modes:
+@@ -84,7 +107,7 @@ class DisplayManager:
+ 
+         else:
+             return sorted(modes, 
+-                          key=lambda m: (m[1] * m[2], m[4]),  # Área > refresh rate
++                          key=lambda m: (m[1] * m[2], DisplayManager._get_refresh_rate(m)),  # Área > refresh rate
+                           reverse=True
+                     )[0]
+ 
+@@ -168,7 +191,7 @@ class DisplayManager:
+         for monitor in monitors:
+             for mode in monitor[1]:
+                 key = (mode[1], mode[2])  # (width, height)
+-                refresh = mode[4]
++                refresh = self._get_refresh_rate(mode)
+                 
+                 if key not in mode_pool:
+                     mode_pool[key] = []
+@@ -218,7 +241,7 @@ class DisplayManager:
+         for mode in monitor[1]:
+             if (mode[1] == width and 
+                 mode[2] == height and 
+-                abs(mode[4] - refresh) <= TOLERANCE):
++                abs(self._get_refresh_rate(mode) - refresh) <= TOLERANCE):
+                 return mode
+         return None
+ ################################

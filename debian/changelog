@@ -1,3 +1,10 @@
+gnome-shell-extension-display-switcher (2.Policorp-1) stable; urgency=medium
+
+  * Add correçao DN50E-140H com refresh rate
+  * fix-refresh-rate-detection.patch
+  
+ -- Lucas Salles <lucas.salles@policorp.com.br>  Mon, 11 May 2026 11:37:22 -0300
+
 gnome-shell-extension-display-switcher (2.Policorp-0) stable; urgency=medium
 
   * Novo visual estilo win 11
